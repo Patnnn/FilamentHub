@@ -274,7 +274,8 @@
         .spool-material { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 8px; }
         .spool-weight { font-size: 24px; font-weight: 900; background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 12px; }
         
-        .spool-actions { position: absolute; top: 12px; right: 12px; display: flex; gap: 8px; z-index: 10; }
+        .spool-actions { position: absolute; top: 12px; right: 12px; display: none; gap: 8px; z-index: 10; }
+        body.is-admin .spool-actions { display: flex; }
         .spool-action-btn { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface); border: none; box-shadow: var(--shadow-1); color: var(--text-muted); cursor: pointer; transition: var(--transition); padding: 0; }
         .spool-action-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
         .spool-action-btn.edit:hover { color: var(--primary); border-color: var(--primary); }
@@ -822,7 +823,7 @@
                             <div class="spool-weight">${f.weight}g</div>
                         </div>
                     </div>
-                    <div class="spool-actions admin-only">
+                    <div class="spool-actions">
                         <button class="spool-action-btn edit" onclick="editItem(${f.id})" title="Bearbeiten">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </button>
