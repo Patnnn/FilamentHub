@@ -6,6 +6,7 @@
     <title>Filament Hub - Material Design</title>
     <!-- Firebase SDKs (v8 compat für einfache Einbindung) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
     <!-- Chart.js für die Diagramme -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -112,9 +113,26 @@
         }
         .section:hover { box-shadow: var(--shadow-2); }
         
-        .admin-only { display: block; }
-        .is-visitor .admin-only { display: none !important; }
+        .admin-only { display: none; }
+        body.is-admin .admin-only { display: block !important; }
+        body.is-admin .admin-inline { display: inline-flex !important; }
+        .visitor-only { display: block; }
+        body.is-admin .visitor-only { display: none; }
+
         .config-area { background: var(--bg-color); }
+
+        /* Login Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2000; justify-content: center; align-items: center; }
+        .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease-out; }
+        .login-modal { background: var(--surface); padding: 32px; border-radius: var(--radius-md); box-shadow: var(--shadow-3); width: 100%; max-width: 400px; box-sizing: border-box; }
+        .login-modal h3 { margin-bottom: 24px; text-align: center; border-bottom: none; padding-bottom: 0; }
+        .login-modal input { width: 100%; margin-bottom: 16px; height: 44px; }
+        .login-modal button { width: 100%; height: 44px; }
+        .close-modal { margin-top: 16px; background: transparent; color: var(--text-muted); box-shadow: none; }
+        .close-modal:hover { background: var(--border-light); box-shadow: none; color: var(--text-main); }
+        
+        .auth-container { position: absolute; top: 24px; right: 24px; display: flex; align-items: center; gap: 12px; z-index: 100; }
+        .auth-status { font-size: 14px; font-weight: 500; color: var(--text-muted); }
 
         /* Dropdown Settings Menu */
         .settings-summary {
@@ -265,7 +283,25 @@
 </head>
 <body id="appBody">
 
-    <div class="preview-banner" onclick="exitPreview()">VORSCHAU-MODUS AKTIV - KLICK ZUM BEENDEN</div>
+    <div class="auth-container">
+        <div id="authStatus" class="auth-status">Nur-Lese-Modus</div>
+        <button id="loginBtn" class="btn-small btn-primary visitor-only" onclick="showLogin()">Admin Login</button>
+        <button id="logoutBtn" class="btn-small admin-only" onclick="logout()">Abmelden</button>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="login-modal">
+            <h3>Admin Login</h3>
+            <form id="loginForm">
+                <input type="email" id="emailInput" placeholder="E-Mail" required>
+                <input type="password" id="passwordInput" placeholder="Passwort" required>
+                <button type="submit" class="btn-primary">Einloggen</button>
+                <button type="button" class="close-modal" onclick="hideLogin()">Abbrechen</button>
+            </form>
+            <div id="loginError" style="color: var(--danger); margin-top: 12px; font-size: 14px; text-align: center; display: none;"></div>
+        </div>
+    </div>
 
     <div class="container">
         <div class="site-header">
@@ -341,10 +377,6 @@
                     <button class="btn-primary" onclick="fetchFromCloud()">Von Firebase laden</button>
                     <button class="btn-success" id="btnSync" onclick="syncToCloud()">In Firebase speichern</button>
                 </div>
-                <div style="margin-top:20px; font-weight: 900;">
-                    <input type="checkbox" id="visitorToggle" onchange="toggleVisitorView()" style="width:20px; height:20px; vertical-align: middle; cursor:pointer; box-shadow:none;"> 
-                    <label for="visitorToggle" style="cursor:pointer; text-transform:uppercase;">Vorschau (Nur-Lese-Modus)</label>
-                </div>
             </div>
         </details>
     </div>
@@ -371,17 +403,63 @@
         const db = firebase.firestore();
         const docRef = db.collection("appData").doc("filamentInventory");
 
-        function toggleVisitorView() {
-            if(document.getElementById('visitorToggle').checked) {
-                document.body.classList.add('is-visitor', 'is-preview');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else { exitPreview(); }
+        // --- AUTHENTIFIZIERUNG LOGIK ---
+        let currentUser = null;
+
+        firebase.auth().onAuthStateChanged((user) => {
+            currentUser = user;
+            if (user) {
+                document.body.classList.add('is-admin');
+                document.getElementById('authStatus').innerText = 'Eingeloggt als Admin';
+                hideLogin();
+            } else {
+                document.body.classList.remove('is-admin');
+                document.getElementById('authStatus').innerText = 'Nur-Lese-Modus';
+            }
+            render(); // Neu rendern, um Admin-Buttons (löschen, bearbeiten) zu zeigen/verstecken
+        });
+
+        function showLogin() {
+            document.getElementById('loginModal').classList.add('active');
+            document.getElementById('loginError').style.display = 'none';
+            document.getElementById('emailInput').focus();
         }
 
-        function exitPreview() {
-            document.body.classList.remove('is-visitor', 'is-preview');
-            document.getElementById('visitorToggle').checked = false;
+        function hideLogin() {
+            document.getElementById('loginModal').classList.remove('active');
+            document.getElementById('loginForm').reset();
         }
+
+        function logout() {
+            firebase.auth().signOut().then(() => {
+                alert("Erfolgreich abgemeldet.");
+            }).catch((error) => {
+                console.error("Logout Fehler:", error);
+            });
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+            const errorDiv = document.getElementById('loginError');
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            
+            submitBtn.innerText = "Lade...";
+            submitBtn.disabled = true;
+
+            firebase.auth().signInWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    submitBtn.innerText = "Einloggen";
+                    submitBtn.disabled = false;
+                })
+                .catch((error) => {
+                    submitBtn.innerText = "Einloggen";
+                    submitBtn.disabled = false;
+                    errorDiv.innerText = "Fehler: E-Mail oder Passwort falsch.";
+                    errorDiv.style.display = 'block';
+                });
+        });
 
         function checkNewBrand(select) {
             if (select.value === 'ADD_NEW') {
@@ -440,8 +518,8 @@
         }
 
         async function syncToCloud() {
-            if(document.body.classList.contains('is-visitor')) {
-                alert("Im Vorschau-Modus kannst du keine Daten speichern.");
+            if (!currentUser) {
+                alert("Bitte logge dich ein, um Änderungen in der Cloud zu speichern.");
                 return;
             }
             const loader = document.getElementById('sync-loader');
